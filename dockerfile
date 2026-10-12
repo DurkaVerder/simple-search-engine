@@ -6,5 +6,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY import_docs.py posts.csv ./
+COPY app ./app
 
-CMD ["python", "import_docs.py", "/app/posts.csv"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -35,25 +35,30 @@ services:
       retries: 30
     networks: [search]
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.15.0
-    container_name: search-kibana
-    environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-    ports:
-      - "5601:5601"
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    networks: [search]
-
   importer:
+    profiles: ["manual"]
     build:
       context: .
       dockerfile: dockerfile
     container_name: search-importer
     env_file: .env
     command: ["python", "import_docs.py", "/app/posts.csv"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks: [search]
+
+  api:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: search-api
+    env_file: .env
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy

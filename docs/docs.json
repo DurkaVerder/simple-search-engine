@@ -1,0 +1,87 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Simple Search Engine",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["system"],
+        "responses": {
+          "200": {
+            "description": "API is available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"status": {"type": "string"}}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "tags": ["search"],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string", "minLength": 1}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to 20 matching documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {"$ref": "#/components/schemas/Post"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{post_id}": {
+      "delete": {
+        "tags": ["posts"],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "204": {"description": "Document deleted"},
+          "404": {"description": "Document not found"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Post": {
+        "type": "object",
+        "required": ["id", "rubrics", "text", "created_date"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "rubrics": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "text": {"type": "string"},
+          "created_date": {"type": "string", "format": "date-time"}
+        }
+      }
+    }
+  }
+}

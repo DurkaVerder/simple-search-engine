@@ -1,11 +1,12 @@
-from pydantic import BaseModel
+from datetime import datetime
+from uuid import UUID
+
+
+from pydantic import BaseModel, Field
+
 
 class Post(BaseModel):
-    id: str
-    rubrics: list[str]
+    id: UUID
+    rubrics: list[str] = Field(default_factory=list)
     text: str
-    created_date: str
-
-class SearchResponse(BaseModel):
-    posts: list[Post]
-
+    created_date: datetime

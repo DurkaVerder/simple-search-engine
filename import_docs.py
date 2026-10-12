@@ -14,30 +14,15 @@ from typing import Any
 
 import asyncpg
 from dotenv import load_dotenv
-from elasticsearch import AsyncElasticsearch, helpers
+from elasticsearch import AsyncElasticsearch
+
+from app.repositories.post_repository import PostRepository
+from app.search.search_repository import SearchRepository
+from app.settings import ELASTICSEARCH_INDEX, ELASTICSEARCH_URL, POSTGRES_DSN
 
 load_dotenv()
 
-POSTGRES_DSN = os.environ["POSTGRES_DSN"]
-ELASTICSEARCH_URL = os.environ["ELASTICSEARCH_URL"]
-ELASTICSEARCH_INDEX = os.environ.get("ELASTICSEARCH_INDEX", "posts")
 CHUNK_SIZE = int(os.environ.get("IMPORT_CHUNK_SIZE", "500"))
-
-CREATE_TABLE = """
-CREATE TABLE IF NOT EXISTS posts (
-    id UUID PRIMARY KEY,
-    rubrics TEXT[] NOT NULL DEFAULT '{}',
-    text TEXT NOT NULL,
-    created_date TIMESTAMPTZ NOT NULL
-);
-"""
-
-INDEX_MAPPING = {
-    "properties": {
-        "id": {"type": "keyword"},
-        "text": {"type": "text"},
-    }
-}
 
 
 def parse_rubrics(value: str) -> list[str]:
@@ -112,43 +97,17 @@ async def import_posts(csv_path: Path) -> int:
     imported = 0
     try:
         await wait_for_elasticsearch(elastic)
-        await elastic.indices.create(index=ELASTICSEARCH_INDEX, mappings=INDEX_MAPPING, ignore=400)
+        posts_repository = PostRepository(pool)
+        search_repository = SearchRepository(elastic, ELASTICSEARCH_INDEX)
+        await posts_repository.create_schema()
+        await search_repository.create_index()
 
-        async with pool.acquire() as connection:
-            await connection.execute(CREATE_TABLE)
-            async for batch in chunks(read_posts(csv_path)):
-                await connection.executemany(
-                    """
-                    INSERT INTO posts (id, rubrics, text, created_date)
-                    VALUES ($1, $2::text[], $3, $4)
-                    ON CONFLICT (id) DO UPDATE SET
-                        rubrics = EXCLUDED.rubrics,
-                        text = EXCLUDED.text,
-                        created_date = EXCLUDED.created_date
-                    """,
-                    [
-                        (post["id"], post["rubrics"], post["text"], post["created_date"])
-                        for post in batch
-                    ],
-                )
-                await helpers.async_bulk(
-                    elastic,
-                    (
-                        {
-                            "_op_type": "index",
-                            "_index": ELASTICSEARCH_INDEX,
-                            "_id": str(post["id"]),
-                            "_source": {
-                                "id": str(post["id"]),
-                                "text": post["text"],
-                            },
-                        }
-                        for post in batch
-                    ),
-                )
-                imported += len(batch)
+        async for batch in chunks(read_posts(csv_path)):
+            await posts_repository.upsert_many(batch)
+            await search_repository.index_many(batch)
+            imported += len(batch)
 
-        await elastic.indices.refresh(index=ELASTICSEARCH_INDEX)
+        await search_repository.refresh()
         return imported
     finally:
         await elastic.close()
