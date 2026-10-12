@@ -1,0 +1,4 @@
+asyncpg==0.30.0
+elasticsearch[async]==8.15.1
+python-dotenv==1.0.1
+fastapi
